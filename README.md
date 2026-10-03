@@ -8,7 +8,9 @@ A data project on MyAnimeList ratings. I'm looking at three things:
 
 ## Status
 
-Collecting data. The third question needs numbers from *before* shows air, and MyAnimeList only shows today's numbers, so a script records every Winter and Spring 2027 anime three times a day starting October 2026. Analysis comes once those seasons have aired.
+**Question 1:** the dataset is built (`src/build_adaptation_dataset.py`, `src/flag_remakes.py`). It has 1,111 first-season TV adaptations from 2005–2024 matched to their source manga or light novel; 197 couldn't be matched confidently and are kept separately. The analysis is in progress in `notebooks/q1_adaptation_gap.ipynb`.
+
+**Question 3:** collecting data. The third question needs numbers from *before* shows air, and MyAnimeList only shows today's numbers, so a script records every Winter and Spring 2027 anime three times a day starting October 2026. Analysis comes once those seasons have aired.
 
 ## How the collector works
 

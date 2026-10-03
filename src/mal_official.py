@@ -5,6 +5,8 @@ needs a free Client ID from https://myanimelist.net/apiconfig. Put the ID (just
 the ID, nothing else) in a file named `.mal_client_id` at the project root.
 That file is in .gitignore so it never gets committed.
 """
+import hashlib
+import json
 import time
 from pathlib import Path
 
@@ -13,6 +15,7 @@ import requests
 
 ROOT = Path(__file__).resolve().parent.parent
 CLIENT_ID_FILE = ROOT / ".mal_client_id"
+CACHE = ROOT / "data" / "cache"
 BASE = "https://api.myanimelist.net/v2"
 FIELDS = ",".join([
     "id", "title", "alternative_titles", "media_type", "source", "status", "start_date",
@@ -29,6 +32,46 @@ def client_id() -> str | None:
     if CLIENT_ID_FILE.exists():
         return CLIENT_ID_FILE.read_text().strip() or None
     return None
+
+
+_last_request = 0.0
+
+
+def get(path: str, params: dict | None = None, use_cache: bool = True) -> dict:
+    """GET an official-API endpoint, waiting ~1s between calls and caching to disk.
+
+    The cache makes long collection jobs resumable: re-running only pays for
+    requests that haven't succeeded before.
+    """
+    global _last_request
+    key = client_id()
+    if not key:
+        raise MALError("no Client ID in .mal_client_id")
+
+    cache_name = hashlib.sha1(json.dumps([path, params], sort_keys=True).encode()).hexdigest()
+    cache_file = CACHE / f"{cache_name}.json"
+    if use_cache and cache_file.exists():
+        return json.loads(cache_file.read_text())
+
+    for wait in [0, 5, 20, 60]:
+        time.sleep(max(wait, 1.0 - (time.time() - _last_request)))
+        _last_request = time.time()
+        try:
+            response = requests.get(f"{BASE}/{path.lstrip('/')}", params=params,
+                                    headers={"X-MAL-CLIENT-ID": key}, timeout=30, verify=certifi.where())
+        except requests.RequestException as error:
+            problem = str(error)
+            continue
+        if response.status_code == 200:
+            body = response.json()
+            if use_cache:
+                CACHE.mkdir(parents=True, exist_ok=True)
+                cache_file.write_text(json.dumps(body))
+            return body
+        problem = f"HTTP {response.status_code}: {response.text[:200]}"
+        if response.status_code == 404:
+            break
+    raise MALError(f"{path} failed: {problem}")
 
 
 def season_anime(year: int, season: str) -> list[dict]:
